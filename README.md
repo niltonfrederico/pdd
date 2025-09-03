@@ -1,10 +1,10 @@
-# Podman PyDebug
+# Podman Django Debug
 
 A powerful debugging toolkit that enhances Python containers with debugging tools, packages, and environment customization for development workflows.
 
 ## Overview
 
-Podman PyDebug injects a customized Python environment into containers at runtime, automatically installing debugging packages, setting up development tools, and configuring the environment for enhanced debugging capabilities. It works by mounting a volume with configuration and scripts that modify the Python site-packages during container startup.
+Podman Django Debug injects a customized Python environment into containers at runtime, automatically installing debugging packages, setting up development tools, and configuring the environment for enhanced debugging capabilities. It works by mounting a volume with configuration and scripts that modify the Python site-packages during container startup.
 
 ## Features
 
@@ -19,8 +19,8 @@ Podman PyDebug injects a customized Python environment into containers at runtim
 ### 1. Clone or Download the Project
 
 ```bash
-git clone <repository-url> ~/.pydebug
-# or download and extract to ~/.pydebug or your preferred location
+git clone <repository-url> ~/.podman-django-debug
+# or download and extract to ~/.podman-django-debug or your preferred location
 ```
 
 ### 2. Create Symbolic Link for Global Access
@@ -28,28 +28,28 @@ git clone <repository-url> ~/.pydebug
 Create a symbolic link to make the script accessible from anywhere in your system:
 
 ```bash
-sudo ln -s ~/.pydebug/podman-pydebug.sh /usr/local/bin/podman-pydebug
+sudo ln -s ~/.podman-django-debug/podman-django-debug.sh /usr/local/bin/podman-django-debug
 ```
 
 **Alternative locations** (choose one based on your system and personal preference):
 ```bash
 # For systems where /usr/local/bin is not in PATH
-sudo ln -s ~/.pydebug/podman-pydebug.sh /usr/bin/podman-pydebug
+sudo ln -s ~/.podman-django-debug/podman-django-debug.sh /usr/bin/podman-django-debug
 
 # For user-only installation (ensure ~/.local/bin is in PATH)
-ln -s ~/.pydebug/podman-pydebug.sh ~/.local/bin/podman-pydebug
+ln -s ~/.podman-django-debug/podman-django-debug.sh ~/.local/bin/podman-django-debug
 ```
 
 ### 3. Make the Script Executable
 
 ```bash
-chmod +x ~/.pydebug/podman-pydebug.sh
+chmod +x ~/.podman-django-debug/podman-django-debug.sh
 ```
 
 ### 4. Verify the Installation
 
 ```bash
-podman-pydebug --help
+pjd --help
 ```
 
 ## Configuration
@@ -59,7 +59,7 @@ podman-pydebug --help
 The `settings.ini` file controls what packages and environment variables are injected into containers. Here's the configuration format:
 
 ```ini
-[podman_pydebug]
+[podman_django_debug]
 additional_debian_packages = ["neovim", "bat", "curl", "git"]
 additional_pip_packages = ["django_extensions", "ipdb", "pytest", "pytest-xdist", "pytest-django"]
 additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True"}
@@ -98,7 +98,7 @@ additional_django_apps = ["django_extensions", "debug_toolbar"]
 
 #### Minimal Python Debugging
 ```ini
-[podman_pydebug]
+[podman_django_debug]
 additional_debian_packages = []
 additional_pip_packages = ["ipdb", "pytest"]
 additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace"}
@@ -108,7 +108,7 @@ additional_django_apps = []
 
 #### Full Development Environment
 ```ini
-[podman_pydebug]
+[podman_django_debug]
 additional_debian_packages = ["neovim", "bat", "curl", "git", "htop", "tree"]
 additional_pip_packages = ["ipdb", "pytest", "pytest-django", "django_extensions", "black", "flake8", "mypy"]
 additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True", "PYTHONVERBOSE": "1"}
@@ -122,35 +122,35 @@ additional_django_apps = ["django_extensions", "debug_toolbar"]
 
 ```bash
 # Run a container with debugging tools
-podman-pydebug my-python-container bash
+pjd my-python-container bash
 
 # Run a compose service
-podman-pydebug web_service bash
+pjd web_service bash
 
 # Run with additional podman options
-podman-pydebug web_service --service-ports bash
+pjd web_service --service-ports bash
 
 # Run with environment variables
-podman-pydebug web_service -e DATABASE_URL=postgres://localhost bash
+pjd web_service -e DATABASE_URL=postgres://localhost bash
 ```
 
 ### Advanced Usage
 
 ```bash
 # Build and run with debugging
-podman-pydebug web_service --build --service-ports bash
+pjd web_service --build --service-ports bash
 
 # Run specific command after setup
-podman-pydebug web_service "python manage.py shell"
+pjd web_service "python manage.py shell"
 
 # Multiple podman options
-podman-pydebug web_service --service-ports -e DEBUG=True --rm bash
+pjd web_service --service-ports -e DEBUG=True --rm bash
 ```
 
 ### Command Structure
 
 ```
-podman-pydebug [service/image] [podman-options...] [command]
+pjd [service/image] [podman-options...] [command]
 ```
 
 - **service/image**: Container image or compose service name
@@ -159,7 +159,7 @@ podman-pydebug [service/image] [podman-options...] [command]
 
 ## How It Works
 
-1. **Volume Mount**: Mounts `~/.pydebug` to `/pydebug` inside the container
+1. **Volume Mount**: Mounts `~/.podman-django-debug` to `/pydebug` inside the container
 2. **Script Injection**: Runs `entrypoint.py` which creates a `sitecustomize.py` file
 3. **Package Installation**: Installs configured Debian and pip packages
 4. **Environment Setup**: Sets environment variables and Django overlays
@@ -194,10 +194,10 @@ podman-pydebug [service/image] [podman-options...] [command]
 ### Permission Errors
 ```bash
 # Ensure script is executable
-chmod +x ~/.pydebug/podman-pydebug.sh
+chmod +x ~/.podman-django-debug/pjd.sh
 
 # Check symbolic link
-ls -la /usr/local/bin/podman-pydebug
+ls -la /usr/local/bin/pjd
 ```
 
 ### Package Installation Failures

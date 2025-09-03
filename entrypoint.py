@@ -34,7 +34,7 @@ def entrypoint():
     settings = configparser.ConfigParser()
     settings.read(settings_file)
 
-    podman_pydebug = settings["podman_pydebug"]
+    podman_pydebug = settings["podman_django_debug"]
     pip_packages = ast.literal_eval(podman_pydebug["additional_pip_packages"])
     debian_packages = ast.literal_eval(podman_pydebug["additional_debian_packages"])
     additional_environment = ast.literal_eval(podman_pydebug["additional_environment"])
@@ -45,20 +45,20 @@ def entrypoint():
             try:
                 metadata.version(package)
             except metadata.PackageNotFoundError:
-                print("[podman-pydebug] will install pip package: ", package)
+                print("[podman_django_debug] will install pip package: ", package)
                 pip_packages_to_install.append(package)
 
     if pip_packages_to_install:
-        print("[podman-pydebug] installing pip packages: ", pip_packages_to_install)
+        print("[podman_django_debug] installing pip packages: ", pip_packages_to_install)
         pip._internal.main(["install", *pip_packages_to_install])
 
     if additional_environment:
         for environment, value in additional_environment.items():
-            print("[podman-pydebug] setting additional environment: ", environment, "=", value)
+            print("[podman_django_debug] setting additional environment: ", environment, "=", value)
             os.environ[environment] = value
     
     if debian_packages:
-        print("[podman-pydebug] installing debian packages: ", debian_packages)
+        print("[podman_django_debug] installing debian packages: ", debian_packages)
         subprocess.run(['apt', 'update'], check=True, capture_output=True)
         subprocess.run(['apt', 'install', '-y', *debian_packages], check=True)
         
@@ -76,9 +76,9 @@ entrypoint()
 try:
     with open(sitecustomize_path, "w") as f:
         f.write(sitecustomize_content)
-    print(f"[podman-pydebug] Successfully wrote to {sitecustomize_path}")
+    print(f"[podman_django_debug] Successfully wrote to {sitecustomize_path}")
 except Exception as e:
-    print(f"[podman-pydebug] Error writing to {sitecustomize_path}: {e}")
+    print(f"[podman_django_debug] Error writing to {sitecustomize_path}: {e}")
     sys.exit(1)
 
-print("[podman-pydebug] Wrote sitecustomize.py!")
+print("[podman_django_debug] Wrote sitecustomize.py!")

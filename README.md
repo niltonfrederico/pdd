@@ -4,7 +4,7 @@ A powerful debugging toolkit that enhances Python containers with debugging tool
 
 ## Overview
 
-Podman Django Debug injects a customized Python environment into containers at runtime, automatically installing debugging packages, setting up development tools, and configuring the environment for enhanced debugging capabilities. It works by mounting a volume with configuration and scripts that modify the Python site-packages during container startup.
+Podman DD injects a customized Python environment into containers at runtime, automatically installing debugging packages, setting up development tools, and configuring the environment for enhanced debugging capabilities. It works by mounting a volume with configuration and scripts that modify the Python site-packages during container startup.
 
 ## Features
 
@@ -19,8 +19,8 @@ Podman Django Debug injects a customized Python environment into containers at r
 ### 1. Clone or Download the Project
 
 ```bash
-git clone <repository-url> ~/.podman-django-debug
-# or download and extract to ~/.podman-django-debug or your preferred location
+git clone <repository-url> ~/.podman-dd
+# or download and extract to ~/.podman-dd or your preferred location
 ```
 
 ### 2. Create Symbolic Link for Global Access
@@ -28,22 +28,22 @@ git clone <repository-url> ~/.podman-django-debug
 Create a symbolic link to make the script accessible from anywhere in your system:
 
 ```bash
-sudo ln -s ~/.podman-django-debug/podman-dd.sh /usr/local/bin/podman-dd
+sudo ln -s ~/.podman-dd/podman-dd.sh /usr/local/bin/podman-dd
 ```
 
 **Alternative locations** (choose one based on your system and personal preference):
 ```bash
 # For systems where /usr/local/bin is not in PATH
-sudo ln -s ~/.podman-django-debug/podman-dd.sh /usr/bin/podman-dd
+sudo ln -s ~/.podman-dd/podman-dd.sh /usr/bin/podman-dd
 
 # For user-only installation (ensure ~/.local/bin is in PATH)
-ln -s ~/.podman-django-debug/podman-dd.sh ~/.local/bin/podman-dd
+ln -s ~/.podman-dd/podman-dd.sh ~/.local/bin/podman-dd
 ```
 
 ### 3. Make the Script Executable
 
 ```bash
-chmod +x ~/.podman-django-debug/podman-dd.sh
+chmod +x ~/.podman-dd/podman-dd.sh
 ```
 
 ### 4. Verify the Installation
@@ -59,7 +59,7 @@ podman-dd --help
 The `settings.ini` file controls what packages and environment variables are injected into containers. Here's the configuration format:
 
 ```ini
-[podman_django_debug]
+[podman_dd]
 additional_debian_packages = ["neovim", "bat", "curl", "git"]
 additional_pip_packages = ["django_extensions", "ipdb", "pytest", "pytest-xdist", "pytest-django"]
 additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True"}
@@ -98,7 +98,7 @@ additional_django_apps = ["django_extensions", "debug_toolbar"]
 
 #### Minimal Python Debugging
 ```ini
-[podman_django_debug]
+[podman_dd]
 additional_debian_packages = []
 additional_pip_packages = ["ipdb", "pytest"]
 additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace"}
@@ -108,7 +108,7 @@ additional_django_apps = []
 
 #### Full Development Environment
 ```ini
-[podman_django_debug]
+[podman_dd]
 additional_debian_packages = ["neovim", "bat", "curl", "git", "htop", "tree"]
 additional_pip_packages = ["ipdb", "pytest", "pytest-django", "django_extensions", "black", "flake8", "mypy"]
 additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True", "PYTHONVERBOSE": "1"}
@@ -159,7 +159,7 @@ podman-dd [service/image] [podman-options...] [command]
 
 ## How It Works
 
-1. **Volume Mount**: Mounts `~/.podman-django-debug` to `/podman-dd` inside the container
+1. **Volume Mount**: Mounts `~/.podman-dd` to `/podman-dd` inside the container
 2. **Script Injection**: Runs `entrypoint.py` which creates a `sitecustomize.py` file
 3. **Package Installation**: Installs configured Debian and pip packages
 4. **Environment Setup**: Sets environment variables and Django overlays
@@ -195,7 +195,7 @@ podman-dd [service/image] [podman-options...] [command]
 ### Permission Errors
 ```bash
 # Ensure script is executable
-chmod +x ~/.podman-django-debug/podman-dd.sh
+chmod +x ~/.podman-dd/podman-dd.sh
 # Check symbolic link
 ls -la /usr/local/bin/podman-dd
 ```

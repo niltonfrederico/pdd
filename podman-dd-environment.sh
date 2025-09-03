@@ -5,13 +5,15 @@
 
 set -e
 
+PODMAN_DD_HOST_PATH="${HOME}/.podman-dd/"
+
 # Constants
 readonly DEFAULT_OUTPUT_FILE="env_vars.sh"
 SCRIPT_NAME="$(basename "$0")"
 
 # Import log functions
 # shellcheck source=/dev/null
-source podman-dd-log.sh
+source "${PODMAN_DD_HOST_PATH}podman-dd-log.sh"
 
 #######################################
 # Print usage information

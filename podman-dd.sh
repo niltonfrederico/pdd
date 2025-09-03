@@ -1,14 +1,15 @@
 #!/bin/bash
 set -e
 
+PODMAN_DD_HOST_PATH="${HOME}/.podman-dd/"
+
 # Import log functions and environment functions
 # shellcheck source=/dev/null
-source podman-dd-log.sh
+source "${PODMAN_DD_HOST_PATH}podman-dd-log.sh"
 # shellcheck source=/dev/null
-source podman-dd-environment.sh
+source "${PODMAN_DD_HOST_PATH}podman-dd-environment.sh"
 
 # Define script location for volume mount
-PODMAN_DD_HOST_PATH="${HOME}/.podman-dd/"
 PODMAN_DD_PATH="/podman-dd"
 PODMAN_DD_ENTRYPOINT="${PODMAN_DD_PATH}/entrypoint.py"
 VOLUME_MOUNT="${PODMAN_DD_HOST_PATH}:${PODMAN_DD_PATH}"

@@ -28,6 +28,10 @@ def entrypoint():
 
     from importlib import metadata
 
+    if os.environ.get("PODMAN_DD_INSTALLED", "0") == "1":
+        print("[podman_dd] Podman DD is already installed")
+        return
+
     os.environ["PYTHONVERBOSE"] = "1"
 
     podman_dd_path = os.environ["PODMAN_DD_PATH"]
@@ -56,12 +60,12 @@ def entrypoint():
     if additional_environment:
         for environment, value in additional_environment.items():
             print(
-                "[podman_dd] Setting additional environment: ",
+                "[podman_dd] Setting additional system environment: ",
                 environment,
                 "=",
                 value,
             )
-            os.environ[environment] = value
+            os.putenv(environment, value)
 
     if debian_packages:
         print("[podman_dd] Installing debian packages: ", debian_packages)
@@ -85,5 +89,3 @@ try:
 except Exception as e:
     print(f"[podman_dd] Error writing sitecustomize.py to {sitecustomize_path}: {e}")
     sys.exit(1)
-
-print("[podman_dd] Wrote sitecustomize.py!")

@@ -5,15 +5,24 @@
 
 set -e
 
-PODMAN_DD_HOST_PATH="${HOME}/.podman-dd/"
+SCRIPT_PATH="podman_dd"
 
 # Constants
 readonly DEFAULT_OUTPUT_FILE="env_vars.sh"
-SCRIPT_NAME="$(basename "$0")"
+SCRIPT_NAME="${SCRIPT_PATH}/podman-dd-environment.sh"
+
+echo "Script path: $SCRIPT_PATH"
+echo "Script name: $SCRIPT_NAME"
 
 # Import log functions
 # shellcheck source=/dev/null
-source "${PODMAN_DD_HOST_PATH}podman-dd-log.sh"
+source "${SCRIPT_PATH}/podman-dd-log.sh"
+
+# Check if log functions are available
+if ! command -v info &> /dev/null; then
+    echo "Error: podman-dd-log.sh is not available"
+    exit 1
+fi
 
 #######################################
 # Print usage information
@@ -49,20 +58,20 @@ validate_input() {
     local section="$2"
 
     if [[ -z "$ini_file" ]]; then
-        error_exit "INI file path is required"
+        error "INI file path is required" 1
     fi
     
     if [[ ! -f "$ini_file" ]]; then
-        error_exit "INI file does not exist: $ini_file"
+        error "INI file does not exist: $ini_file" 1
     fi
     
     if [[ ! -r "$ini_file" ]]; then
-        error_exit "Cannot read INI file: $ini_file"
+        error "Cannot read INI file: $ini_file" 1
     fi
     
     # Check if section is provided
     if [[ -z "$section" ]]; then
-        error_exit "Section name is required"
+        error "Section name is required" 1
     fi
 }
 
@@ -251,7 +260,7 @@ dd_environment() {
     # Check minimum arguments
     if [[ $# -lt 1 ]]; then
         show_usage
-        error_exit "INI file path is required"
+        error "INI file path is required" 1
     fi
     
     # Generate the environment script

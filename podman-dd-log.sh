@@ -58,7 +58,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     error "This script should be sourced" true
 else
     # Export the functions
-    echo "[podman_dd] Exporting log functions"
     export -f error
     export -f info
     export -f warn

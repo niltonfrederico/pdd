@@ -59,8 +59,10 @@ def entrypoint():
     import sys
     import ast
     import pip._internal
+    import shutil
 
     from importlib import metadata
+    from pathlib import Path
 
     if os.isatty(sys.stdout.fileno()):
         colors = {
@@ -92,6 +94,17 @@ def entrypoint():
         return
 
     os.environ["PYTHONVERBOSE"] = "1"
+
+    # Copy original settings.py to the podman dd path
+    original_settings_file = os.environ["DJANGO_SETTINGS_MODULE"]
+    app, _settings = original_settings_file.split(".")
+
+    original_settings_file = Path(app) / (_settings + ".py")
+    backup_settings_file = Path(os.environ["PODMAN_DD_PATH"]) / (
+        _settings + ".original.py"
+    )
+
+    shutil.copy(original_settings_file, backup_settings_file)
 
     podman_dd_path = os.environ["PODMAN_DD_PATH"]
     settings_file = os.path.join(podman_dd_path, "settings.ini")

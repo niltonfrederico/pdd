@@ -28,28 +28,28 @@ git clone <repository-url> ~/.podman-django-debug
 Create a symbolic link to make the script accessible from anywhere in your system:
 
 ```bash
-sudo ln -s ~/.podman-django-debug/podman-django-debug.sh /usr/local/bin/podman-django-debug
+sudo ln -s ~/.podman-django-debug/podman-dd.sh /usr/local/bin/podman-dd
 ```
 
 **Alternative locations** (choose one based on your system and personal preference):
 ```bash
 # For systems where /usr/local/bin is not in PATH
-sudo ln -s ~/.podman-django-debug/podman-django-debug.sh /usr/bin/podman-django-debug
+sudo ln -s ~/.podman-django-debug/podman-dd.sh /usr/bin/podman-dd
 
 # For user-only installation (ensure ~/.local/bin is in PATH)
-ln -s ~/.podman-django-debug/podman-django-debug.sh ~/.local/bin/podman-django-debug
+ln -s ~/.podman-django-debug/podman-dd.sh ~/.local/bin/podman-dd
 ```
 
 ### 3. Make the Script Executable
 
 ```bash
-chmod +x ~/.podman-django-debug/podman-django-debug.sh
+chmod +x ~/.podman-django-debug/podman-dd.sh
 ```
 
 ### 4. Verify the Installation
 
 ```bash
-pjd --help
+podman-dd --help
 ```
 
 ## Configuration
@@ -122,35 +122,35 @@ additional_django_apps = ["django_extensions", "debug_toolbar"]
 
 ```bash
 # Run a container with debugging tools
-pjd my-python-container bash
+podman-dd my-python-container bash
 
 # Run a compose service
-pjd web_service bash
+podman-dd web_service bash
 
 # Run with additional podman options
-pjd web_service --service-ports bash
+podman-dd web_service --service-ports bash
 
 # Run with environment variables
-pjd web_service -e DATABASE_URL=postgres://localhost bash
+podman-dd web_service -e DATABASE_URL=postgres://localhost bash
 ```
 
 ### Advanced Usage
 
 ```bash
 # Build and run with debugging
-pjd web_service --build --service-ports bash
+podman-dd web_service --build --service-ports bash
 
 # Run specific command after setup
-pjd web_service "python manage.py shell"
+podman-dd web_service "python manage.py shell"
 
 # Multiple podman options
-pjd web_service --service-ports -e DEBUG=True --rm bash
+podman-dd web_service --service-ports -e DEBUG=True --rm bash
 ```
 
 ### Command Structure
 
 ```
-pjd [service/image] [podman-options...] [command]
+podman-dd [service/image] [podman-options...] [command]
 ```
 
 - **service/image**: Container image or compose service name
@@ -188,16 +188,16 @@ pjd [service/image] [podman-options...] [command]
 3. **Storage Space**: Additional packages require extra container storage
 4. **Startup Time**: Initial package installation adds container startup overhead
 5. **Python Version**: Requires Python 3.6+ for proper site-packages detection
+6. **Podman/Docker**: Plugin support for Podman is sketchy at best, calling `podman dd` may not work, but `podman-dd` will.
 
 ## Troubleshooting
 
 ### Permission Errors
 ```bash
 # Ensure script is executable
-chmod +x ~/.podman-django-debug/pjd.sh
-
+chmod +x ~/.podman-django-debug/podman-dd.sh
 # Check symbolic link
-ls -la /usr/local/bin/pjd
+ls -la /usr/local/bin/podman-dd
 ```
 
 ### Package Installation Failures

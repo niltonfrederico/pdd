@@ -9,16 +9,18 @@ original_settings = import_module(original_django_settings)
 globals().update(original_settings.__dict__)
 
 # Overriden settings
-PODMAN_DJANGO_DEBUG = os.environ["PODMAN_DJANGO_DEBUG"] == "1"
+PODMAN_DD = os.environ["PODMAN_DD"] == "1"
 settings = configparser.ConfigParser()
 settings.read("settings.ini")
 
-if PODMAN_DJANGO_DEBUG:
-    overlay_apps = settings.get("additional_django_settings", "INSTALLED_APPS").split(",")
+if PODMAN_DD:
+    overlay_apps = settings.get("additional_django_settings", "INSTALLED_APPS").split(
+        ","
+    )
 
     for app in overlay_apps:
         if app not in original_settings.INSTALLED_APPS:
-            print("[podman_django_debug] overlaying django app: ", app)
+            print("[podman_dd] overlaying django app: ", app)
             original_settings.INSTALLED_APPS.append(app)
 
     original_installed_apps_set = set(original_settings.INSTALLED_APPS)

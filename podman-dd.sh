@@ -2,23 +2,23 @@
 set -e
 
 # Define script location for volume mount
-SCRIPTS_DIR="${HOME}/.pydebug/"
-PYTHON_SCRIPT="/pydebug/entrypoint.py"
-PYDEBUG_PODMAN_FOLDER="/pydebug"
-VOLUME_MOUNT="${SCRIPTS_DIR}:${PYDEBUG_PODMAN_FOLDER}"
+PODMAN_DD_HOST_PATH="${HOME}/.podman-dd/"
+PODMAN_DD_PATH="/podman-dd"
+PODMAN_DD_ENTRYPOINT="${PODMAN_DD_PATH}/entrypoint.py"
+VOLUME_MOUNT="${PODMAN_DD_HOST_PATH}:${PODMAN_DD_PATH}"
 
 # Help function
 function show_help() {
-  echo "podman pydebug - Run containers with an injected Python script"
+  echo "podman-dd - Run containers with an injected Python script"
   echo ""
   echo "Usage:"
-  echo "  podman pydebug [service] [podman-options...] [command]"
+  echo "  podman-dd [service] [podman-options...] [command]"
   echo ""
   echo "Examples:"
-  echo "  podman pydebug my-container bash"
-  echo "  podman pydebug compose_service --service-ports bash"
-  echo "  podman pydebug compose_service --build --service-ports bash"
-  echo "  podman pydebug compose_service -e FOO=BAR bash"
+  echo "  podman-dd my-container bash"
+  echo "  podman-dd compose_service --service-ports bash"
+  echo "  podman-dd compose_service --build --service-ports bash"
+  echo "  podman-dd compose_service -e FOO=BAR bash"
   echo ""
 }
 
@@ -30,7 +30,7 @@ fi
 
 # Check if at least one argument is provided
 if [ $# -lt 1 ]; then
-  echo "Error: Missing service name" >&2
+  echo "[podman-dd] Error: Missing service name" >&2
   show_help
   exit 1
 fi
@@ -61,7 +61,7 @@ function is_compose_context() {
 
 function build_bash_command() {
   local base_cmd
-  base_cmd="python ${PYTHON_SCRIPT} || true"
+  base_cmd="python ${PODMAN_DD_ENTRYPOINT} || true"
   
   if [ ${#RUN_COMMAND[@]} -ge 1 ]; then
     echo "${base_cmd} && python -c 'import site; print(site.getsitepackages()[0])' && exec ${RUN_COMMAND[*]}"
@@ -75,17 +75,17 @@ function run_podman() {
   bash_cmd=$(build_bash_command "$@")
   
   if is_compose_context; then
-    echo "Running compose service '$SERVICE' with Python script injection..."
-    echo "Podman options: ${PODMAN_OPTS[*]}"
-    echo "Final command: ${RUN_COMMAND[*]}"
-    echo "Bash command: ${bash_cmd}"
-    podman compose run -e PODMAN_PYDEBUG=1 -e PODMAN_PYDEBUG_FOLDER="${PYDEBUG_PODMAN_FOLDER}" --rm -v "${VOLUME_MOUNT}" "${PODMAN_OPTS[@]}" "$SERVICE"  bash -c "$bash_cmd"
+    echo "[podman-dd] Running compose service '$SERVICE' with Python script injection..."
+    echo "[podman-dd] Podman options: ${PODMAN_OPTS[*]}"
+    echo "[podman-dd] Final command: ${RUN_COMMAND[*]}"
+    echo "[podman-dd] Bash command: ${bash_cmd}"
+    podman compose run -e PODMAN_DD=1 -e PODMAN_DD_PATH="${PODMAN_DD_PATH}" --rm -v "${VOLUME_MOUNT}" "${PODMAN_OPTS[@]}" "$SERVICE"  bash -c "$bash_cmd"
   else
-    echo "Running container '$SERVICE' with Python script injection..."
-    echo "Podman options: ${PODMAN_OPTS[*]}"
-    echo "Final command: ${RUN_COMMAND[*]}"
-    echo "Bash command: ${bash_cmd}"
-    podman run -e PODMAN_PYDEBUG=1 -e PODMAN_PYDEBUG_FOLDER="${PYDEBUG_PODMAN_FOLDER}" --rm -v "${VOLUME_MOUNT}" "${PODMAN_OPTS[@]}" "$SERVICE"  bash -c "$bash_cmd"
+    echo "[podman-dd] Running container '$SERVICE' with Python script injection..."
+    echo "[podman-dd] Podman options: ${PODMAN_OPTS[*]}"
+    echo "[podman-dd] Final command: ${RUN_COMMAND[*]}"
+    echo "[podman-dd] Bash command: ${bash_cmd}"
+    podman run -e PODMAN_DD=1 -e PODMAN_DD_PATH="${PODMAN_DD_PATH}" --rm -v "${VOLUME_MOUNT}" "${PODMAN_OPTS[@]}" "$SERVICE"  bash -c "$bash_cmd"
   fi
 }
 

@@ -9,14 +9,15 @@ import inspect
 site_packages = site.getsitepackages()[0]
 sitecustomize_path = os.path.join(site_packages, "sitecustomize.py")
 
-print(f"Site-packages directory: {site_packages}")
-print(f"Creating/updating sitecustomize.py at: {sitecustomize_path}")
+print(f"[podman_dd] Site-packages directory: {site_packages}")
+print(f"[podman_dd] Creating/updating sitecustomize.py at: {sitecustomize_path}")
 
 # Check if we have write permission to the directory
 if not os.access(os.path.dirname(sitecustomize_path), os.W_OK):
-    print(f"You don't have write permission to {site_packages}")
-    print("Try running the script with sudo or as an administrator")
+    print(f"[podman_dd] You don't have write permission to {site_packages}")
+    print("[podman_dd] Try running the script with sudo or as an administrator")
     sys.exit(1)
+
 
 def entrypoint():
     import configparser
@@ -29,15 +30,15 @@ def entrypoint():
 
     os.environ["PYTHONVERBOSE"] = "1"
 
-    pydebug_scripts_dir = os.environ["PODMAN_PYDEBUG_FOLDER"]
-    settings_file = os.path.join(pydebug_scripts_dir, "settings.ini")
+    podman_dd_path = os.environ["PODMAN_DD_PATH"]
+    settings_file = os.path.join(podman_dd_path, "settings.ini")
     settings = configparser.ConfigParser()
     settings.read(settings_file)
 
-    podman_pydebug = settings["podman_django_debug"]
-    pip_packages = ast.literal_eval(podman_pydebug["additional_pip_packages"])
-    debian_packages = ast.literal_eval(podman_pydebug["additional_debian_packages"])
-    additional_environment = ast.literal_eval(podman_pydebug["additional_environment"])
+    podman_dd = settings["podman_dd"]
+    pip_packages = ast.literal_eval(podman_dd["additional_pip_packages"])
+    debian_packages = ast.literal_eval(podman_dd["additional_debian_packages"])
+    additional_environment = ast.literal_eval(podman_dd["additional_environment"])
 
     pip_packages_to_install = []
     if pip_packages:
@@ -45,23 +46,27 @@ def entrypoint():
             try:
                 metadata.version(package)
             except metadata.PackageNotFoundError:
-                print("[podman_django_debug] will install pip package: ", package)
+                print("[podman_dd] Will install pip package: ", package)
                 pip_packages_to_install.append(package)
 
     if pip_packages_to_install:
-        print("[podman_django_debug] installing pip packages: ", pip_packages_to_install)
+        print("[podman_dd] Installing pip packages: ", pip_packages_to_install)
         pip._internal.main(["install", *pip_packages_to_install])
 
     if additional_environment:
         for environment, value in additional_environment.items():
-            print("[podman_django_debug] setting additional environment: ", environment, "=", value)
+            print(
+                "[podman_dd] Setting additional environment: ",
+                environment,
+                "=",
+                value,
+            )
             os.environ[environment] = value
-    
+
     if debian_packages:
-        print("[podman_django_debug] installing debian packages: ", debian_packages)
-        subprocess.run(['apt', 'update'], check=True, capture_output=True)
-        subprocess.run(['apt', 'install', '-y', *debian_packages], check=True)
-        
+        print("[podman_dd] Installing debian packages: ", debian_packages)
+        subprocess.run(["apt", "update"], check=True, capture_output=True)
+        subprocess.run(["apt", "install", "-y", *debian_packages], check=True)
 
     os.environ["PYTHONVERBOSE"] = "0"
 
@@ -76,9 +81,9 @@ entrypoint()
 try:
     with open(sitecustomize_path, "w") as f:
         f.write(sitecustomize_content)
-    print(f"[podman_django_debug] Successfully wrote to {sitecustomize_path}")
+    print(f"[podman_dd] Successfully wrote sitecustomize.py to {sitecustomize_path}")
 except Exception as e:
-    print(f"[podman_django_debug] Error writing to {sitecustomize_path}: {e}")
+    print(f"[podman_dd] Error writing sitecustomize.py to {sitecustomize_path}: {e}")
     sys.exit(1)
 
-print("[podman_django_debug] Wrote sitecustomize.py!")
+print("[podman_dd] Wrote sitecustomize.py!")

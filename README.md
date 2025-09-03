@@ -159,7 +159,7 @@ podman-dd [service/image] [podman-options...] [command]
 
 ## How It Works
 
-1. **Volume Mount**: Mounts `~/.podman-django-debug` to `/pydebug` inside the container
+1. **Volume Mount**: Mounts `~/.podman-django-debug` to `/podman-dd` inside the container
 2. **Script Injection**: Runs `entrypoint.py` which creates a `sitecustomize.py` file
 3. **Package Installation**: Installs configured Debian and pip packages
 4. **Environment Setup**: Sets environment variables and Django overlays

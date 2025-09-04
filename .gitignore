@@ -1,0 +1,7 @@
+*
+!.gitignore
+!.settings.ini
+!LICENSE
+!pdd.py
+!pdd.sh
+!README.md

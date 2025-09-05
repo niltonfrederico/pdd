@@ -1,0 +1,36 @@
+# Example configuration
+
+# Wanna debug?
+# (boolean (true/false|1/0))
+DEBUG=false
+
+# Path inside the container to install the PDD
+# Modify if you require a custom path (like me)
+# If doesn't start with a /, it will be relative to the current directory
+CONTAINER_INSTALLATION_PATH=".pdd"
+
+# Debian apt-get packages to be installed
+# (package)
+APT_PACKAGES = (
+    "vim"
+)
+# Pip packages to be installed
+# (pypi package)
+PIP_PACKAGES = (
+    "ipdb"
+)
+# Environment variables to be injected into the container
+# (variable, value)
+ENVIRONMENT_VARIABLES=(
+    "PYTHONBREAKPOINT=ipdb.set_trace"
+)
+# Django packages to be injected into the django settings
+# (package, app_name)
+DJANGO_PACKAGES=(
+    "django_extensions=django_extensions"
+)
+# Django settings to be injected into the django settings
+# (setting, value)
+DJANGO_SETTINGS=(
+    "MY_COOL_SETTING=1"
+)

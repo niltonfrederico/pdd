@@ -1,26 +1,30 @@
-# Podman Django Debug
+# PDD (Podman Django Debug)
 
-A powerful debugging toolkit that enhances Python containers with debugging tools, packages, and environment customization for development workflows.
+A powerful debugging toolkit that enhances Django containers with debugging tools, packages, and environment customization for development workflows. PDD works with both Docker and Podman containers.
+
+⚠️ DO NOT USE THIS TOOL FOR PRODUCTION. ⚠️
 
 ## Overview
 
-Podman DD injects a customized Python environment into containers at runtime, automatically installing debugging packages, setting up development tools, and configuring the environment for enhanced debugging capabilities. It works by mounting a volume with configuration and scripts that modify the Python site-packages during container startup.
+PDD injects a customized development environment into Django containers at runtime, automatically installing debugging packages, setting up development tools, and configuring the Django environment for enhanced debugging capabilities. It works by copying configuration files and scripts into the container, then executing setup commands to install packages and modify Django settings.
 
 ## Features
 
 - **Automatic Package Installation**: Installs both pip and Debian packages on container startup
 - **Environment Customization**: Sets custom environment variables for debugging
-- **Django Integration**: Overlay Django settings for development environments
-- **Flexible Configuration**: INI-based configuration for easy customization
-- **Compose Support**: Works with both standalone containers and compose services
+- **Django Integration**: Injects Django apps and settings for development environments
+- **Flexible Configuration**: Bash-based configuration for easy customization
+- **Multi-Runtime Support**: Works with both Docker and Podman
+- **Compose Support**: Works with both docker-compose and podman-compose
+- **Automatic Discovery**: Automatically discovers Django settings.py files
 
 ## Installation
 
 ### 1. Clone or Download the Project
 
 ```bash
-git clone <repository-url> ~/.podman-dd
-# or download and extract to ~/.podman-dd or your preferred location
+git clone https://github.com/niltonfrederico/pdd.git ~/.pdd
+# or download and extract to ~/.pdd or your preferred location
 ```
 
 ### 2. Create Symbolic Link for Global Access
@@ -28,92 +32,185 @@ git clone <repository-url> ~/.podman-dd
 Create a symbolic link to make the script accessible from anywhere in your system:
 
 ```bash
-sudo ln -s ~/.podman-dd/podman-dd.sh /usr/local/bin/podman-dd
+sudo ln -s ~/.pdd/pdd.sh /usr/local/bin/pdd
 ```
 
 **Alternative locations** (choose one based on your system and personal preference):
 ```bash
 # For systems where /usr/local/bin is not in PATH
-sudo ln -s ~/.podman-dd/podman-dd.sh /usr/bin/podman-dd
+sudo ln -s ~/.pdd/pdd.sh /usr/bin/pdd
 
 # For user-only installation (ensure ~/.local/bin is in PATH)
-ln -s ~/.podman-dd/podman-dd.sh ~/.local/bin/podman-dd
+ln -s ~/.pdd/pdd.sh ~/.local/bin/pdd
 ```
 
 ### 3. Make the Script Executable
 
 ```bash
-chmod +x ~/.podman-dd/podman-dd.sh
+chmod +x ~/.pdd/pdd.sh
 ```
 
-### 4. Verify the Installation
+### 4. Create Configuration File
+
+Copy the example configuration and customize it:
 
 ```bash
-podman-dd --help
+cp ~/.pdd/pdd.conf.example ~/.pdd/pdd.conf
+```
+
+### 5. Verify the Installation
+
+```bash
+pdd --help
 ```
 
 ## Configuration
 
-### settings.ini Setup - for all the configuration options  
+### pdd.conf Setup - Configuration Options
 
-The `settings.ini` file controls what packages and environment variables are injected into containers. Here's the configuration format:
+The `pdd.conf` file controls what packages and environment variables are injected into containers. The configuration uses bash array syntax:
 
-```ini
-[podman_dd]
-additional_debian_packages = ["neovim", "bat", "curl", "git"]
-additional_pip_packages = ["django_extensions", "ipdb", "pytest", "pytest-xdist", "pytest-django"]
-additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True"}
-additional_django_settings = ["django_extensions"]
-additional_django_apps = ["django_extensions"]
+```bash
+# Debug mode (true/false)
+DEBUG=true
+
+# Container installation path (optional)
+# CONTAINER_INSTALLATION_PATH="/.pdd/"
+
+# Debian packages to install
+APT_PACKAGES=(
+    "neovim"
+    "bat"
+    "curl"
+    "git"
+)
+
+# Python packages to install
+PIP_PACKAGES=(
+    "django_extensions"
+    "ipdb"
+    "pytest"
+    "pytest-django"
+)
+
+# Environment variables to set
+ENVIRONMENT_VARIABLES=(
+    "PYTHONBREAKPOINT=ipdb.set_trace"
+    "DEBUG=True"
+)
+
+# Django packages (format: package=app_name)
+DJANGO_PACKAGES=(
+    "django_extensions=django_extensions"
+)
+
+# Django settings to inject
+DJANGO_SETTINGS=(
+    "MY_CUSTOM_SETTING=1"
+)
 ```
 
 ### Configuration Options
 
-#### `additional_debian_packages`
-List of Debian/Ubuntu packages to install via `apt`:
-```ini
-additional_debian_packages = ["neovim", "bat", "curl", "git", "htop"]
+#### `APT_PACKAGES`
+Array of Debian/Ubuntu packages to install via `apt`:
+```bash
+APT_PACKAGES=(
+    "neovim"
+    "bat"
+    "curl"
+    "git"
+    "htop"
+)
 ```
 
-#### `additional_pip_packages`  
-List of Python packages to install via `pip`:
-```ini
-additional_pip_packages = ["ipdb", "pytest", "black", "flake8", "mypy"]
+#### `PIP_PACKAGES`  
+Array of Python packages to install via `pip`:
+```bash
+PIP_PACKAGES=(
+    "ipdb"
+    "pytest"
+    "black"
+    "flake8"
+    "mypy"
+)
 ```
 
-#### `additional_environment`
-Environment variables to set:
-```ini
-additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True", "LOG_LEVEL": "DEBUG"}
+#### `ENVIRONMENT_VARIABLES`
+Array of environment variables to set (format: VAR=value):
+```bash
+ENVIRONMENT_VARIABLES=(
+    "PYTHONBREAKPOINT=ipdb.set_trace"
+    "DEBUG=True"
+    "LOG_LEVEL=DEBUG"
+)
 ```
 
-#### `additional_django_settings` & `additional_django_apps`
-Django-specific configuration for adding development apps:
-```ini
-additional_django_settings = ["django_extensions", "debug_toolbar"]
-additional_django_apps = ["django_extensions", "debug_toolbar"]
+#### `DJANGO_PACKAGES` & `DJANGO_SETTINGS`
+Django-specific configuration:
+```bash
+# Django packages (format: package=app_name)
+DJANGO_PACKAGES=(
+    "django_extensions=django_extensions"
+    "debug_toolbar=debug_toolbar"
+)
+
+# Custom Django settings to inject
+DJANGO_SETTINGS=(
+    "MY_DEBUG_SETTING=True"
+    "CUSTOM_CONFIG=value"
+    "PARSED_SETTINGS=int('1')"
+)
 ```
 
 ### Example Configurations
 
 #### Minimal Python Debugging
-```ini
-[podman_dd]
-additional_debian_packages = []
-additional_pip_packages = ["ipdb", "pytest"]
-additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace"}
-additional_django_settings = []
-additional_django_apps = []
+```bash
+DEBUG=false
+APT_PACKAGES=()
+PIP_PACKAGES=(
+    "ipdb"
+    "pytest"
+)
+ENVIRONMENT_VARIABLES=(
+    "PYTHONBREAKPOINT=ipdb.set_trace"
+)
+DJANGO_PACKAGES=()
+DJANGO_SETTINGS=()
 ```
 
 #### Full Development Environment
-```ini
-[podman_dd]
-additional_debian_packages = ["neovim", "bat", "curl", "git", "htop", "tree"]
-additional_pip_packages = ["ipdb", "pytest", "pytest-django", "django_extensions", "black", "flake8", "mypy"]
-additional_environment = {"PYTHONBREAKPOINT": "ipdb.set_trace", "DEBUG": "True", "PYTHONVERBOSE": "1"}
-additional_django_settings = ["django_extensions", "debug_toolbar"]
-additional_django_apps = ["django_extensions", "debug_toolbar"]
+```bash
+DEBUG=true
+APT_PACKAGES=(
+    "neovim"
+    "bat"
+    "curl"
+    "git"
+    "htop"
+    "tree"
+)
+PIP_PACKAGES=(
+    "ipdb"
+    "pytest"
+    "pytest-django"
+    "django_extensions"
+    "black"
+    "flake8"
+    "mypy"
+)
+ENVIRONMENT_VARIABLES=(
+    "PYTHONBREAKPOINT=ipdb.set_trace"
+    "DEBUG=True"
+    "PYTHONVERBOSE=1"
+)
+DJANGO_PACKAGES=(
+    "django_extensions=django_extensions"
+)
+DJANGO_SETTINGS=(
+    "DEVELOPMENT_MODE=True"
+)
 ```
 
 ## Usage
@@ -167,13 +264,17 @@ podman-dd [service/image] [podman-options...] [command]
 
 ## Current Issues & Limitations
 
-### ⚠️ Debian/Ubuntu Container Requirement
+### ⚠️ Requirements and Limitations
 
-**Current Limitation**: The tool currently only works with Debian-based containers (Debian, Ubuntu, etc.) because:
+**Current Limitations**:
 
-- Uses `apt` package manager for system packages
-- Assumes Debian package naming conventions
-- Relies on Debian-style filesystem layout
+1. **Django Projects Only**: Requires a Django project with settings.py file
+2. **Debian/Ubuntu Container Support**: Currently only works with Debian-based containers
+   - Uses `apt` package manager for system packages
+   - Assumes Debian package naming conventions
+3. **Compose File Required**: Requires docker-compose.yml or docker-compose.yaml file
+4. **Python 3.11+**: Requires Python 3.11 or higher
+5. **Container Runtime**: Requires either Docker or Podman to be installed
 
 **Containers NOT supported**:
 - Alpine Linux (uses `apk`)
@@ -187,44 +288,69 @@ podman-dd [service/image] [podman-options...] [command]
 2. **Network Access**: Container needs internet access for package downloads
 3. **Storage Space**: Additional packages require extra container storage
 4. **Startup Time**: Initial package installation adds container startup overhead
-5. **Python Version**: Requires Python 3.6+ for proper site-packages detection
-6. **Podman/Docker**: Plugin support for Podman is sketchy at best, calling `podman dd` may not work, but `podman-dd` will.
 
 ## Troubleshooting
 
 ### Permission Errors
 ```bash
 # Ensure script is executable
-chmod +x ~/.podman-dd/podman-dd.sh
+chmod +x ~/.pdd/pdd.sh
 # Check symbolic link
-ls -la /usr/local/bin/podman-dd
+ls -la /usr/local/bin/pdd
+```
+
+### Missing Compose File
+```bash
+# Ensure you're in a directory with docker-compose.yml
+ls -la docker-compose.y*
+```
+
+### Django Settings Not Found
+```bash
+# Ensure you're in a Django project directory
+find . -name "settings.py" -not -path "*/.*" -not -path "*/venv*"
 ```
 
 ### Package Installation Failures
 - Verify container has internet access
 - Check if container runs as root or has sudo privileges
 - Ensure container is Debian/Ubuntu based
+- Check that `bc` calculator is available (auto-installed if missing)
 
 ### Configuration Issues
-- Validate JSON syntax in settings.ini arrays
+- Validate bash array syntax in pdd.conf
 - Check file paths and permissions
-- Verify environment variable syntax
+- Verify environment variable syntax (VAR=value format)
+- Ensure DJANGO_PACKAGES uses package=app_name format
+
+### Runtime Detection Issues
+```bash
+# Check available container runtimes
+which docker podman
+# Check available compose tools
+which docker-compose podman-compose
+docker compose version  # For built-in Docker Compose
+podman compose --help   # For built-in Podman Compose
+```
 
 ## Contributing
 
 To extend support for other Linux distributions:
 
-1. Modify the package installation logic in `entrypoint.py`
-2. Add distribution detection
+1. Modify the package installation logic in `pdd.sh`
+2. Add distribution detection in the `install_debian_packages` function
 3. Implement package manager abstractions (apk, yum, zypper)
 4. Update configuration options for different package names
+5. Add support for non-Django Python projects
 
 ## Security Considerations
 
 - **Privileged Access**: Tool requires container privileges to install packages
 - **Network Access**: Downloads packages from public repositories
-- **Volume Mounts**: Mounts host directory into container
+- **File Copying**: Copies host files into container (/.pdd directory)
+- **Settings Modification**: Modifies Django settings.py (creates backup)
 - **Package Sources**: Uses default package repositories (ensure they're trusted)
+- **Environment Variables**: Injects custom environment variables into container
 
 ## License
 

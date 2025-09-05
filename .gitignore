@@ -1,7 +1,6 @@
 *
 !.gitignore
-!.settings.ini
 !LICENSE
-!pdd.py
+!pdd.conf.example
 !pdd.sh
 !README.md

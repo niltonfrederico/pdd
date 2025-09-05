@@ -1,32 +1,8 @@
 #!/bin/bash
-set -e
+# set -euo pipefail
 
-################################################################################
-# Global variables
-# Feel free to tweak to your liking
-################################################################################
-PDD_DEBUG=${PDD_DEBUG:-0}
-PDD_INSTALLATION_PATH="${HOME}/Chronopolis/prometheus/repos/pdd"
-PDD_SCRIPTS_PATH="/scripts/.pdd"
-PDD_CONTAINER_PATH="/app${PDD_SCRIPTS_PATH}"
-
-################################################################################
-# Global variables
-# Do not change below this line unless you know what you are doing
-################################################################################
-PDD_ENTRYPOINT="${PDD_CONTAINER_PATH}/pdd.py"
-PDD_SETTINGS_INI_PATH="${PDD_CONTAINER_PATH}/settings.ini"
-PDD_ENV_VARS_PATH="${PDD_CONTAINER_PATH}/env_vars.sh"
-PDD_IS_CONTAINER=false
-
-################################################################################
-# Check if is called from inside a container
-################################################################################
-if [ -f /.dockerenv ] || [ -f /run/.containerenv ]; then
-  PDD_IS_CONTAINER=true
-else
-  PDD_IS_CONTAINER=false
-fi
+# We will always init with debug mode
+DEBUG=true
 
 ################################################################################
 # Log functions
@@ -71,8 +47,7 @@ error() {
 #######################################
 debug() {
     local message="$1"
-    local should_exit="$2"
-    if [ "$PDD_DEBUG" = true ] || [ "$PDD_DEBUG" = 1 ]; then
+    if [ "$DEBUG" = true ] || [ "$DEBUG" = 1 ]; then
         echo -e "${DD_CYAN}[pdd]${DD_NC} ${DD_BLUE}Debug: $message${DD_NC}" >&2
     fi
 }
@@ -96,307 +71,247 @@ warn() {
     echo -e "${DD_CYAN}[pdd]${DD_NC} ${DD_YELLOW}Warning:${DD_NC} $1" >&2
 }
 
+################################################################################
+# Check if is called from inside a container
+################################################################################
+PDD_IS_CONTAINER=$([[ -f /.dockerenv || -f /run/.containerenv ]] && echo "true" || echo "false")
+
+info "Running in container: $PDD_IS_CONTAINER"
 
 ################################################################################
-# Prepare volume mount
+# Discover Django settings.py file and extract app name
 ################################################################################
+# Discover Django settings.py file and extract app name
+# Searches up to 2 levels deep, excluding hidden and virtual environment directories
+debug "Discovering Django settings.py file and extracting app name"
 SETTINGS_PY=$(find . -maxdepth 2 -name "settings.py" -not -path "*/.*" -not -path "*/venv*")
-info "Settings.py path: $SETTINGS_PY"
+[[ -z "$SETTINGS_PY" ]] && error "Django settings.py not found in current directory tree" 1
+debug "Settings.py file found: $SETTINGS_PY"
+
+debug "Extracting app name from settings.py file"
 APP_NAME=$(basename "$(dirname "${SETTINGS_PY}")")
-info "App name: $APP_NAME"
-if [ "$PDD_IS_CONTAINER" = false ]; then
-    info "Preparing volume mount"
-    PDD_VOLUME_MOUNT="${PDD_INSTALLATION_PATH}"
+info "Django app detected: $APP_NAME (settings: $SETTINGS_PY)"
 
-    # Create a temporary directory with all files from pdd installation path
-    PDD_TEMP_DIR=$(mktemp -d)
-    cp -r "${PDD_INSTALLATION_PATH}/" "${PDD_TEMP_DIR}"
-
-    # Use the temporary directory as PDD_VOLUME_MOUNT
-    PDD_VOLUME_MOUNT="${PDD_TEMP_DIR}:${PDD_CONTAINER_PATH}"
+# Validate if settings.py is found
+debug "Validating if settings.py is found"
+if [[ -z "$SETTINGS_PY" ]]; then
+    error "Django settings.py not found in current directory tree" 1
 fi
 
 ################################################################################
-# Environment variables and .init functions
+# Loading pdd.conf
+# Feel free to tweak on your pdd.conf
 ################################################################################
+# Check if pdd.conf exists
+# Ensure defaults are set
+if [ "$PDD_IS_CONTAINER" = "true" ]; then
+  PDD_INSTALL_PATH="${CONTAINER_INSTALLATION_PATH:-/.pdd/}"
+else
+  PDD_INSTALL_PATH=$(dirname "$(realpath "$0")")
+fi
 
-#######################################
-# Validate input parameters
-# Arguments:
-#   $1 - INI file path
-#   $2 - Section name
-#######################################
-dd_validate_input() {
-    local ini_file="$1"
-    local section="$2"
+PDD_INSTALL_PATH="${PDD_INSTALL_PATH:-$(dirname "$(realpath "$0")")}"
+PDD_CONF_PATH="${PDD_INSTALL_PATH}/pdd.conf"
 
-    if [[ -z "$ini_file" ]]; then
-        error "INI file path is required" 1
-    fi
-    
-    if [[ ! -f "$ini_file" ]]; then
-        error "INI file does not exist: $ini_file" 1
-    fi
-    
-    if [[ ! -r "$ini_file" ]]; then
-        error "Cannot read INI file: $ini_file" 1
-    fi
-    
-    # Check if section is provided
-    if [[ -z "$section" ]]; then
-        error "Section name is required" 1
-    fi
-}
+if [ ! -f "${PDD_CONF_PATH}" ]; then
+    echo "${PDD_CONF_PATH} not found. Have you created it?"
+    exit 1
+fi
 
-#######################################
-# Check if line is a comment or empty
-# Arguments:
-#   $1 - Line content
-# Returns:
-#   0 if line should be skipped, 1 otherwise
-#######################################
-dd_should_skip_line() {
-    local line="$1"
-    [[ -z "$line" || "$line" =~ ^[[:space:]]*[#\;] ]]
-}
+# shellcheck source=/dev/null
+source "${PDD_CONF_PATH}"
 
-#######################################
-# Check if line is a section header
-# Arguments:
-#   $1 - Line content
-# Returns:
-#   0 if line is a section header, 1 otherwise
-#######################################
-dd_is_section_header() {
-    local line="$1"
-    [[ "$line" =~ ^\[([^\]]+)\]$ ]]
-}
-
-#######################################
-# Extract section name from section header
-# Arguments:
-#   $1 - Section header line
-# Returns:
-#   Section name
-#######################################
-dd_extract_section_name() {
-    local line="$1"
-    if [[ "$line" =~ ^\[([^\]]+)\]$ ]]; then
-        echo "${BASH_REMATCH[1]}"
-    fi
-}
-
-#######################################
-# Clean and trim whitespace from string
-# Arguments:
-#   $1 - String to clean
-# Returns:
-#   Cleaned string
-#######################################
-dd_trim_whitespace() {
-    local input="$1"
-    echo "$input" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
-}
-
-#######################################
-# Remove surrounding quotes from value
-# Arguments:
-#   $1 - Value string
-# Returns:
-#   Value without surrounding quotes
-#######################################
-dd_remove_quotes() {
-    local value="$1"
-    echo "$value" | sed 's/^"//;s/"$//'
-}
-
-#######################################
-# Convert section and key to environment variable name
-# Arguments:
-#   $1 - Key name
-# Returns:
-#   Environment variable name in UPPER_CASE format
-#######################################
-dd_create_env_var_name() {
-    local key="$1"
-    echo "${key}" | tr '[:lower:]' '[:upper:]'
-}
-
-#######################################
-# Write the header of the output script
-# Arguments:
-#   $1 - Output file path
-#   $2 - Source INI file path
-#######################################
-dd_write_script_header() {
-    local output_file="$1"
-    local source_ini="$2"
-    local section="$3"
-    local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    cat > "$output_file" << EOF
-#!/bin/bash
-# Auto-generated environment variables script
-# Source INI file: $source_ini
-# Section: $section
-# Generated on: $timestamp
-# 
-# Usage: source $output_file
-
-EOF
-}
-
-#######################################
-# Generate environment variables script from INI file
-# Arguments:
-#   $1 - INI file path (required)
-#   $2 - Section name (required)
-#   $3 - Output file path (optional, defaults to env_vars.sh)
-#######################################
-dd_generate_env_script() {
-    local ini_file="$1"
-    local section="$2"
-    local output_file="${3:-$PDD_ENV_VARS_PATH}"
-    local current_section=""
-    local line_number=0
-
-    debug "INI file path: $ini_file"
-    debug "Section name: $section"
-    debug "Output file path: $output_file"
-    debug "Current section: $current_section"
-    debug "Line number: $line_number"
-    
-    # Validate inputs
-    dd_validate_input "$ini_file" "$section"
-    
-    # Create output script with header
-    dd_write_script_header "$output_file" "$ini_file" "$section"
-    
-    info "Processing INI file: $ini_file"
-    info "Processing section: $section"
-    
-    # Process each line of the INI file
-    while IFS='=' read -r raw_key raw_value; do
-        line_number=$((line_number+1))
-        
-        # Skip empty lines and comments
-        if dd_should_skip_line "$raw_key"; then
-            debug "Skipping line #$line_number: $raw_key=$raw_value"
-            continue
-        fi
-        
-        # Handle section headers
-        if dd_is_section_header "$raw_key"; then
-            current_section=$(dd_extract_section_name "$raw_key")
-            if [[ -n "$section" && "$current_section" != "$section" ]]; then
-                debug "Skipping section header #$line_number: $raw_key=$raw_value"
-                # Skip section headers outside of section
-                continue
-            fi
-            echo "# Section: $current_section" >> "$output_file"
-            continue
-        fi
-        
-        # Skip key-value pairs outside of sections
-        if [[ -n "$section" && "$current_section" != "$section" ]]; then
-            debug "Current section: $current_section"
-            debug "Section: $section"
-            debug "Skipping key-value pair #$line_number: $raw_key=$raw_value"
-            continue
-        fi
-
-        info "Adding key-value pair to output file: $raw_key = $raw_value"
-        
-        # Process key-value pairs
-        local clean_key clean_value env_var_name
-        clean_key=$(dd_trim_whitespace "$raw_key")
-        clean_value=$(dd_trim_whitespace "$raw_value")
-        clean_value=$(dd_remove_quotes "$clean_value")
-        
-        # Skip malformed lines
-        if [[ -z "$clean_key" ]]; then
-            warn "Empty key on line $line_number, skipping"
-            continue
-        fi
-        
-        # Create environment variable
-        env_var_name=$(dd_create_env_var_name "$clean_key")
-        echo "export $env_var_name=\"$clean_value\"" >> "$output_file"
-        
-    done < "$ini_file"
-    
-    # Make the output script executable
-    chmod +x "$output_file"
-    
-    info "Generated environment script: $output_file"
-    info "To use: source $output_file"
-}
-
-#######################################
-# dd_environment wrapper to be used
-#######################################
-dd_environment() {    
-    # Check minimum arguments
-    if [[ $# -lt 1 ]]; then
-        show_usage
-        error "INI file path is required" 1
-    fi
-
-    debug "INI file path: $1"
-    debug "Section name: $2"
-    
-    # Generate the environment script
-    dd_generate_env_script "$@"
-}
 
 ################################################################################
-# Container functions
+# Dependencies
 ################################################################################
-function pdd_cleanup() {
+
+# Install bc if not installed
+if ! command -v bc &> /dev/null; then
+    warn "bc not found, installing..."
+    apt update -qq || error "Failed to update package lists" 1
+    apt install -qq -y bc || error "Failed to install bc" 1
+
+    # Test if bc is installed
+    if ! command -v bc &> /dev/null; then
+        error "bc not installed" 1
+    fi
+
+    info "bc installed"
+fi
+
+# Python 3.11+
+# Set PYTHON_VERSION if is unbound
+if [ -z "${PYTHON_VERSION:-}" ]; then
+    debug "PYTHON_VERSION not set, setting it..."
+    PYTHON_VERSION=$(python3 --version | grep -o "3\.[0-9]\+")
+    debug "PYTHON_VERSION set to $PYTHON_VERSION"
+fi
+
+IS_PYTHON_3_11_OR_HIGHER=$(echo "$PYTHON_VERSION >= 3.11" | bc -l)
+
+debug "Python version: $PYTHON_VERSION"
+debug "IS_PYTHON_3_11_OR_HIGHER: $IS_PYTHON_3_11_OR_HIGHER"
+
+if [ "$IS_PYTHON_3_11_OR_HIGHER" = 0 ]; then
+    error "Python 3.11 or higher is required" 1
+fi
+
+################################################################################
+# Cleanup functions
+################################################################################
+function pdd_restore() {
   warn "Cleaning up"
-  # find settings.original.py in PDD_VOLUME_MOUNT, looking only in subdirectories
-  SETTINGS_ORIGINAL_PY="$PWD/$APP_NAME/settings.original.py"
+  # find settings.original.py in PDD_INSTALL_PATH
+  SETTINGS_ORIGINAL_PY="$PDD_INSTALL_PATH/settings.original.py"
 
-  warn "Moving $SETTINGS_ORIGINAL_PY to settings.py"
-  mv "${SETTINGS_ORIGINAL_PY}" "${SETTINGS_ORIGINAL_PY%.original.py}.py"
-  warn "Removed injected settings.py"
+  if [ -f "${SETTINGS_ORIGINAL_PY}" ]; then
+    warn "Restoring $SETTINGS_ORIGINAL_PY to settings.py"
+    mv "${SETTINGS_ORIGINAL_PY}" "${SETTINGS_PY}"
+    warn "Restored settings.py"
+  fi
 }
 
+################################################################################
+# Debian/Python package functions from pdd.conf
+################################################################################
+debug "Defining install_debian_packages function"
+function install_debian_packages() {
+  info "Installing Debian packages from pdd.conf..."
+  
+  # Check if APT_PACKAGES array exists and has elements
+  if [[ ${#APT_PACKAGES[@]} -eq 0 ]]; then
+    info "No Debian packages specified in pdd.conf"
+    return 0
+  fi
+  
+  # Install packages directly from array
+  info "Installing packages: ${#APT_PACKAGES[@]}"
+
+  # apt install -qq -y "${APT_PACKAGES[@]}" || error "Failed to install Debian packages: ${APT_PACKAGES[*]}" 1
+  
+  info "Successfully installed ${#APT_PACKAGES[@]} Debian packages"
+}
+
+debug "Defining install_python_packages function"
+function install_python_packages() {
+  info "Installing Python packages from pdd.conf..."
+  
+  # Check if PIP_PACKAGES array exists and has elements
+  if [[ ${#PIP_PACKAGES[@]} -eq 0 ]]; then
+    info "No Python packages specified in pdd.conf"
+    return 0
+  fi
+  
+  # Convert array to space-separated string and install all at once
+  info "Installing packages: ${#PIP_PACKAGES[@]}"
+  
+  # pip install --no-cache-dir "${PIP_PACKAGES[@]}" || error "Failed to install Python packages: ${PIP_PACKAGES[*]}" 1
+  
+  info "Successfully installed ${#PIP_PACKAGES[@]} Python packages"
+}
+
+debug "Defining install_django_packages function"
+function install_django_packages() {
+    info "Installing Django packages from pdd.conf..."
+    
+    # Check if DJANGO_PACKAGES array exists and has elements
+    if [[ ${#DJANGO_PACKAGES[@]} -eq 0 ]]; then
+        info "No Django packages specified in pdd.conf"
+        return 0
+    fi
+
+    # DJANGO_PACKAGES is like this:
+    # ("package=app_name", "package=app_name", ...)
+    # So we need to get the packages, ignoring the app_name
+    local -a packages=()
+    for item in "${DJANGO_PACKAGES[@]}"; do
+        # Extract package name (part before '=')
+        package_name="${item%%=*}"
+        packages+=("$package_name")
+    done
+    
+    #pip install "${packages[@]}" || error "Failed to install Django packages: ${packages[*]}" 1
+    
+    info "Successfully installed $((${#packages[@]})) Django packages"
+}
+
+################################################################################
+# Injection functions
+#
+# The order of injection will be:
+# 0. Backup settings.py to settings.original.py
+# 1. Set environment variables from pdd.conf
+# 2. Install Debian packages
+# 3. Install Python packages
+# 4. Install Django packages using the key from DJANGO_PACKAGES
+# 5. Append to INSTALLED_APPS in settings.py from the value of DJANGO_PACKAGES
+# 6. Append to settings.py the value of DJANGO_SETTINGS
+# 8. Set PDD_IS_INSTALLED=1 to indicate that PDD is installed inside the container
+#
+################################################################################
+debug "Defining backup_settings function"
+function backup_settings() {
+    # Backup settings.py to settings.original.py
+    cp "$SETTINGS_PY" "${PDD_INSTALL_PATH}/settings.original.py"
+}
+
+debug "Defining set_django_apps function"
+function set_django_apps() {
+    # Get the app_name of DJANGO_PACKAGES and write INSTALLED_APPS in settings.py
+    # Remember that the value of DJANGO_PACKAGES is like this:
+    # ("package=app_name", "package=app_name", ...)
+    # So we need to get the app_name
+    info "Injecting $((${#DJANGO_PACKAGES[@]})) app_names to INSTALLED_APPS in settings.py"
+    local -a app_names=()
+    for item in "${DJANGO_PACKAGES[@]}"; do
+        # Extract app_name (part after '=')
+        app_name="${item#*=}"
+        app_names+=("$app_name")
+    done
+    # echo "### PDD APP INJECTION ###" >> "$SETTINGS_PY"
+    
+    # Write one line per app_name
+    for app_name in "${app_names[@]}"; do
+        info "Injecting $app_name to INSTALLED_APPS in settings.py"
+        # echo "INSTALLED_APPS += [$app_name]" >> "$SETTINGS_PY"
+    done
+
+    # echo "### END PDD APP INJECTION ###" >> "$SETTINGS_PY"
+}
+
+debug "Defining set_django_settings function"
+function set_django_settings() {
+    # Get the value of DJANGO_SETTINGS and write to settings.py
+    info "Injecting $((${#DJANGO_SETTINGS[*]})) settings to settings.py"
+    echo "### PDD DJANGO SETTINGS INJECTION ###" >> "$SETTINGS_PY"
+
+    for settings in "${DJANGO_SETTINGS[@]}"; do
+        info "Injecting $settings to settings.py"
+        echo "$settings" >> "$SETTINGS_PY"
+    done
+
+    echo "### END PDD DJANGO SETTINGS INJECTION ###" >> "$SETTINGS_PY"
+}
+
+debug "Defining pdd_install function"
 function pdd_install() {
-  # Set dd internal environment variables
-  info "Set dd internal environment variables"
-  # shellcheck source=/dev/null
-  dd_environment "${PDD_SETTINGS_INI_PATH}" "pdd.pre_install_environment"
-  info "Source environment variables"
-  # shellcheck source=/dev/null
-  source "${PDD_ENV_VARS_PATH}"
-  info "End source environment variables"
+    info "Installing podman-dd inside the container"   
 
-  # Install PDD
-  info "Install PDD"
-  python "${PDD_ENTRYPOINT}" "${PDD_CONTAINER_PATH}"
+    backup_settings
+    install_debian_packages
+    install_python_packages
+    install_django_packages
+    set_django_apps
+    set_django_settings
 
-  # Set user custom environment variables
-  info "Set user custom environment variables"
-  # shellcheck source=/dev/null
-  dd_environment "${PDD_SETTINGS_INI_PATH}" "pdd.user_environment"
-  # shellcheck source=/dev/null
-  source "${PDD_ENV_VARS_PATH}"
-
-  # Set post install environment variables
-  info "Set post install environment variables"
-  # shellcheck source=/dev/null
-  dd_environment "${PDD_SETTINGS_INI_PATH}" "pdd.post_install_environment"
-  # shellcheck source=/dev/null
-  source "${PDD_ENV_VARS_PATH}"
-
-  info "End set post install environment variables"
+    export PDD_IS_INSTALLED=1
 }
 
 ################################################################################
 # Run command functions
 ################################################################################
+debug "Defining show_usage function"
 function show_usage() {
   echo -e "${DD_BLUE}podman-dd - Run containers with inhected environment variables, python, django and debian packages${DD_NC}"
   echo -e "${DD_BLUE}Usage:${DD_NC}"
@@ -410,34 +325,118 @@ function show_usage() {
   echo -e ""
 }
 
+debug "Defining run_docker_exec function"
 function run_docker_exec() {
+  info "Running docker exec"
   local service="$1"
   local opts="$2"
   local run_command="$3"
 
-  local BASH_CMD="bash -c 'PDD_DEBUG=$PDD_DEBUG $PDD_CONTAINER_PATH/pdd.sh && $run_command'"
-  local DOCKER_BIN="docker-compose" # Podman have a docker alias, so we use docker as default
+  # Remove trailing spaces from service
+  info "Removing trailing spaces from service, opts and run_command"
+  service="${service// /}"
+  opts="${opts// /}"
+  run_command="${run_command// /}"
+  info "Getting docker and docker-compose commands"
 
-  warn "Volume mount: ${PDD_VOLUME_MOUNT}"
-  warn "Container options: ${opts[*]}"
-  warn "Container service: $service"
-  warn "Shell command: ${BASH_CMD}"
+  # Get docker/podman commands
+  info "Detecting container runtime and compose tool..."
 
-  info "Running compose service '$service' with Python script injection..."
-  local cmd="${DOCKER_BIN} run --rm -v ${PDD_VOLUME_MOUNT} ${opts[*]} ${service} ${BASH_CMD}"
-  debug "Running command: ${cmd}"
-  eval "${cmd}"
+  # Detect Docker/Podman command
+  if command -v docker >/dev/null 2>&1; then
+      DOCKER_CMD="docker"
+      info "Using Docker runtime"
+  elif command -v podman >/dev/null 2>&1; then
+      DOCKER_CMD="podman"
+      info "Using Podman runtime"
+  else
+      error "Neither Docker nor Podman found. Please install one of them." 1
+  fi
+
+  # Detect Docker Compose/Podman Compose command
+  if command -v docker-compose >/dev/null 2>&1; then
+      DOCKER_COMPOSE_CMD="docker-compose"
+      info "Using docker-compose"
+  elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      DOCKER_COMPOSE_CMD="docker compose"
+      info "Using docker compose (built-in)"
+  elif command -v podman-compose >/dev/null 2>&1; then
+      DOCKER_COMPOSE_CMD="podman-compose"
+      info "Using podman-compose"
+  elif command -v podman >/dev/null 2>&1 && podman compose --help >/dev/null 2>&1; then
+      DOCKER_COMPOSE_CMD="podman compose"
+      info "Using podman compose (built-in)"
+  else
+      error "No compose tool found. Please install docker-compose, podman-compose, or use Docker/Podman with built-in compose support." 1
+  fi
+
+  debug "Container runtime: ${DOCKER_CMD}"
+  debug "Compose tool: ${DOCKER_COMPOSE_CMD}"
+
+  # Step 1: Start container and install PDD
+  info "Step 1: Starting container and installing PDD..."
+
+  # Start container in detached mode with a long-running command
+  local container_id
+  debug "Starting container with command: ${DOCKER_COMPOSE_CMD} run -d ${service} sleep infinity"
+  container_id=$(${DOCKER_COMPOSE_CMD} run -d "${service}" sleep infinity)
+
+  if [ -z "$container_id" ]; then
+    error "Failed to start container" 1
+  fi
+  
+  info "Container started with ID: $container_id"
+  
+  # Copy PDD files into the container
+  info "Copying PDD files to container..."
+  ${DOCKER_CMD} cp "${PDD_INSTALL_PATH}/." "${container_id}:/.pdd"
+  
+  info "Starting PDD Session..."
+  
+  subcommand="source /.pdd/pdd.sh --install && ${run_command}"
+  debug "Subcommand: ${subcommand}"
+  ${DOCKER_CMD} exec -it "${container_id}" bash -lc "${subcommand}"
+
+  # Cleanup: Stop container
+  info "Cleaning up container..."
+  ${DOCKER_CMD} kill "${container_id}" >/dev/null 2>&1 || true
 }
 
 ################################################################################
 # Arguments handling
 ################################################################################
+# Check if at least one argument is provided
+if [ $# -eq 0 ]; then
+  show_usage
+  exit 1
+fi
+
 # Check for help
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
   show_usage
   exit 0
 fi
 
+# Install it is called using `pdd.sh --install` will be installed inside the container
+if [ "$1" == "--install" ]; then
+  info "Installing podman-dd inside the container"
+  pdd_install
+  info "Exporting environment variables ${ENVIRONMENT_VARIABLES[*]}"
+
+  for custom_env in "${ENVIRONMENT_VARIABLES[@]}"; do
+    info "Exporting $custom_env"
+    export "${custom_env}"
+  done
+fi
+
+# Restore it is called using `pdd.sh --restore` will be restored inside the container
+if [ "$1" == "--restore" ]; then
+  info "Restoring podman-dd inside the container"
+  pdd_restore
+  exit 0
+fi
+
+debug "Defining validate_and_get_service function"
 function validate_and_get_service() {
   local service="$1"
   if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
@@ -459,6 +458,7 @@ function validate_and_get_service() {
   echo "$service"
 }
 
+debug "Defining get_opts function"
 function get_opts() {
     # opts are all arguments except the last one
     if [ $# -eq 1 ]; then
@@ -468,6 +468,7 @@ function get_opts() {
     fi
 }
 
+debug "Defining get_run_command function"
 function get_run_command() {
     # run command is the last argument
     if [ $# -eq 1 ]; then
@@ -478,27 +479,18 @@ function get_run_command() {
 }
 
 ################################################################################
-# Arguments aliases
+# Execution of host command
 ################################################################################
-PDD_OPTS="${PDD_OPTS//--sp/--service-ports}"
-PDD_OPTS="${PDD_OPTS//--ro/--remove-orphans}"
-
-################################################################################
-# Main execution
-################################################################################
-debug "PDD_DEBUG: $PDD_DEBUG"
-debug "PDD_IS_CONTAINER: $PDD_IS_CONTAINER"
-
-if [ "$PDD_IS_CONTAINER" = true ]; then
-  info "Installing podman-dd inside the container"
-  trap pdd_cleanup EXIT SIGINT SIGTERM
-  pdd_install
-else
-  info "Executing the run command"
+if [ "$PDD_IS_CONTAINER" = "false" ]; then
+  PDD_OPTS="${PDD_OPTS//--sp/--service-ports}"
+  PDD_OPTS="${PDD_OPTS//--ro/--remove-orphans}"
+  debug "PDD_OPTS: $PDD_OPTS"
 
   PDD_SERVICE=$(validate_and_get_service "$1")
   PDD_OPTS=$(get_opts "${@:1:$((${#}-1))}")
   PDD_RUN_COMMAND=$(get_run_command "${@: -1}")
 
   run_docker_exec "$PDD_SERVICE" "$PDD_OPTS" "$PDD_RUN_COMMAND"
+
+  exit 0
 fi

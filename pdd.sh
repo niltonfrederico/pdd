@@ -188,7 +188,7 @@ function install_debian_packages() {
   # Install packages directly from array
   info "Installing packages: ${#APT_PACKAGES[@]}"
 
-  # apt install -qq -y "${APT_PACKAGES[@]}" || error "Failed to install Debian packages: ${APT_PACKAGES[*]}" 1
+  apt install -qq -y "${APT_PACKAGES[@]}" || error "Failed to install Debian packages: ${APT_PACKAGES[*]}" 1
   
   info "Successfully installed ${#APT_PACKAGES[@]} Debian packages"
 }
@@ -206,7 +206,7 @@ function install_python_packages() {
   # Convert array to space-separated string and install all at once
   info "Installing packages: ${#PIP_PACKAGES[@]}"
   
-  # pip install --no-cache-dir "${PIP_PACKAGES[@]}" || error "Failed to install Python packages: ${PIP_PACKAGES[*]}" 1
+  pip install --no-cache-dir "${PIP_PACKAGES[@]}" || error "Failed to install Python packages: ${PIP_PACKAGES[*]}" 1
   
   info "Successfully installed ${#PIP_PACKAGES[@]} Python packages"
 }
@@ -231,7 +231,7 @@ function install_django_packages() {
         packages+=("$package_name")
     done
     
-    #pip install "${packages[@]}" || error "Failed to install Django packages: ${packages[*]}" 1
+    pip install "${packages[@]}" || error "Failed to install Django packages: ${packages[*]}" 1
     
     info "Successfully installed $((${#packages[@]})) Django packages"
 }
@@ -269,15 +269,15 @@ function set_django_apps() {
         app_name="${item#*=}"
         app_names+=("$app_name")
     done
-    # echo "### PDD APP INJECTION ###" >> "$SETTINGS_PY"
+    echo "### PDD APP INJECTION ###" >> "$SETTINGS_PY"
     
     # Write one line per app_name
     for app_name in "${app_names[@]}"; do
         info "Injecting $app_name to INSTALLED_APPS in settings.py"
-        # echo "INSTALLED_APPS += [$app_name]" >> "$SETTINGS_PY"
+        echo "INSTALLED_APPS += [$app_name]" >> "$SETTINGS_PY"
     done
 
-    # echo "### END PDD APP INJECTION ###" >> "$SETTINGS_PY"
+    echo "### END PDD APP INJECTION ###" >> "$SETTINGS_PY"
 }
 
 debug "Defining set_django_settings function"

@@ -162,13 +162,10 @@ fi
 ################################################################################
 function pdd_restore() {
   warn "Cleaning up"
-  # find settings.original.py in PDD_INSTALL_PATH
-  SETTINGS_ORIGINAL_PY="$PDD_INSTALL_PATH/settings.original.py"
 
-  if [ -f "${SETTINGS_ORIGINAL_PY}" ]; then
-    warn "Restoring $SETTINGS_ORIGINAL_PY to settings.py"
-    mv "${SETTINGS_ORIGINAL_PY}" "${SETTINGS_PY}"
-    warn "Restored settings.py"
+  if [ -f "${SETTINGS_PY}" ]; then
+    # Remove the PDD Injection by removing the lines between ### PDD INJECTION START ### and ### PDD INJECTION END ### and themselves
+    sed -i '/### PDD INJECTION START ###/,/### PDD INJECTION END ###/d' "$SETTINGS_PY"
   fi
 }
 
@@ -240,7 +237,6 @@ function install_django_packages() {
 # Injection functions
 #
 # The order of injection will be:
-# 0. Backup settings.py to settings.original.py
 # 1. Set environment variables from pdd.conf
 # 2. Install Debian packages
 # 3. Install Python packages
@@ -250,12 +246,6 @@ function install_django_packages() {
 # 8. Set PDD_IS_INSTALLED=1 to indicate that PDD is installed inside the container
 #
 ################################################################################
-debug "Defining backup_settings function"
-function backup_settings() {
-    # Backup settings.py to settings.original.py
-    cp "$SETTINGS_PY" "${PDD_INSTALL_PATH}/settings.original.py"
-}
-
 debug "Defining set_django_apps function"
 function set_django_apps() {
     # Get the app_name of DJANGO_PACKAGES and write INSTALLED_APPS in settings.py
@@ -274,7 +264,7 @@ function set_django_apps() {
     # Write one line per app_name
     for app_name in "${app_names[@]}"; do
         info "Injecting $app_name to INSTALLED_APPS in settings.py"
-        echo "INSTALLED_APPS += [$app_name]" >> "$SETTINGS_PY"
+        echo "INSTALLED_APPS += [\"$app_name\"]" >> "$SETTINGS_PY"
     done
 
     echo "### END PDD APP INJECTION ###" >> "$SETTINGS_PY"
@@ -296,14 +286,17 @@ function set_django_settings() {
 
 debug "Defining pdd_install function"
 function pdd_install() {
-    info "Installing podman-dd inside the container"   
+    info "Installing podman-dd inside the container" 
 
-    backup_settings
+    echo "### PDD INJECTION START ###" >> "$SETTINGS_PY"
+
     install_debian_packages
     install_python_packages
     install_django_packages
     set_django_apps
     set_django_settings
+
+    echo "### PDD INJECTION END ###" >> "$SETTINGS_PY"
 
     export PDD_IS_INSTALLED=1
 }

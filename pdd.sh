@@ -161,12 +161,24 @@ fi
 # Cleanup functions
 ################################################################################
 function pdd_restore() {
-  warn "Cleaning up"
+  warn "Cleaning up pdd installation"
+  local docker_cmd=$1
+  local docker_compose_cmd=$2
+  local service=$3
+  local container_id=$4
+
+  debug "[Cleanup] Docker command: ${docker_cmd}"
+  debug "[Cleanup] Docker compose command: ${docker_compose_cmd}"
+  debug "[Cleanup] Service: ${service}"
+  debug "[Cleanup] Container ID: ${container_id}"
 
   if [ -f "${SETTINGS_PY}" ]; then
     # Remove the PDD Injection by removing the lines between ### PDD INJECTION START ### and ### PDD INJECTION END ### and themselves
-    sed -i '/### PDD INJECTION START ###/,/### PDD INJECTION END ###/d' "$SETTINGS_PY"
+    sed -i '' '/### PDD INJECTION START ###/,/### PDD INJECTION END ###/d' "${SETTINGS_PY}"
   fi
+
+  ${docker_cmd} kill "${container_id}" >/dev/null 2>&1 || true
+  ${docker_compose_cmd} down "${service}" --remove-orphans >/dev/null 2>&1 || true
 }
 
 ################################################################################
@@ -325,6 +337,26 @@ function run_docker_exec() {
   local opts="$2"
   local run_command="$3"
 
+  debug "Service: $service"
+  debug "Run command: $run_command"
+
+  # Remove service from opts
+  opts="${opts//${service}/}"
+
+  # Aliases
+  # --sp -> --service-ports
+  if [[ "$opts" == *"--sp"* ]]; then
+    opts="${opts//--sp/--service-ports}"
+  fi
+
+  # --ro -> --remove-orphans
+  if [[ "$opts" == *"--rm"* ]]; then
+    opts="${opts//--rm/--remove-orphans}"
+  fi
+
+
+  debug "Opts: $opts"
+
   # Remove trailing spaces from service
   info "Removing trailing spaces from service, opts and run_command"
   service="${service// /}"
@@ -371,8 +403,8 @@ function run_docker_exec() {
 
   # Start container in detached mode with a long-running command
   local container_id
-  debug "Starting container with command: ${DOCKER_COMPOSE_CMD} run -d ${service} sleep infinity"
-  container_id=$(${DOCKER_COMPOSE_CMD} run -d "${service}" sleep infinity)
+  debug "Starting container with command: ${DOCKER_COMPOSE_CMD} run ${opts} -d ${service} sleep infinity"
+  container_id=$(${DOCKER_COMPOSE_CMD} run ${opts} -d "${service}" sleep infinity)
 
   if [ -z "$container_id" ]; then
     error "Failed to start container" 1
@@ -390,9 +422,7 @@ function run_docker_exec() {
   debug "Subcommand: ${subcommand}"
   ${DOCKER_CMD} exec -it "${container_id}" bash -lc "${subcommand}"
 
-  # Cleanup: Stop container
-  info "Cleaning up container..."
-  ${DOCKER_CMD} kill "${container_id}" >/dev/null 2>&1 || true
+  ${PDD_INSTALL_PATH}/pdd.sh --restore ${DOCKER_CMD} ${DOCKER_COMPOSE_CMD} ${service} ${container_id}
 }
 
 ################################################################################
@@ -424,14 +454,13 @@ fi
 
 # Restore it is called using `pdd.sh --restore` will be restored inside the container
 if [ "$1" == "--restore" ]; then
-  info "Restoring podman-dd inside the container"
-  pdd_restore
+  pdd_restore "$2" "$3" "$4" "$5"
   exit 0
 fi
 
 debug "Defining validate_and_get_service function"
 function validate_and_get_service() {
-  local service="$1"
+  local all_args="$1"
   if [ ! -f "docker-compose.yml" ] && [ ! -f "docker-compose.yaml" ]; then
     error "No docker-compose.yml or docker-compose.yaml file found" 1
   fi
@@ -441,6 +470,17 @@ function validate_and_get_service() {
     show_usage
     error "Provide a service name" 1
   fi
+
+  # Service is the first argument found without beginning with - or --
+  # All args is something like this: "--sp service command"
+  set -- $all_args
+  while [[ $# -gt 0 && "$1" =~ ^-+ ]]; do
+    shift
+  done
+  service="$1"
+
+  debug "[Get Service] All args: $all_args"
+  debug "[Get Service] Service: $service"
 
   # Check service is provided
   if [ -z "$service" ]; then
@@ -453,35 +493,45 @@ function validate_and_get_service() {
 
 debug "Defining get_opts function"
 function get_opts() {
-    # opts are all arguments except the last one
-    if [ $# -eq 1 ]; then
-        echo ""
-    else
-        echo "${*:1:$((${#}-1))}"
-    fi
+    # Opts are all arguments that start with - or --
+    local all_args="$1"
+    local opts=()
+
+    for arg in $all_args; do
+      if [[ "$arg" =~ ^-+ ]]; then
+        opts+=("$arg")
+      fi
+    done
+
+    echo "${opts[*]}"
 }
 
 debug "Defining get_run_command function"
 function get_run_command() {
-    # run command is the last argument
-    if [ $# -eq 1 ]; then
-        echo "$1"
-    else
-        echo "${*: -1}"
-    fi
+    local all_args="$1"
+    
+    # Run command is the last argument without beginning with - or --
+    run_command="${all_args##* }"
+
+    echo "$run_command"
 }
 
 ################################################################################
 # Execution of host command
 ################################################################################
 if [ "$PDD_IS_CONTAINER" = "false" ]; then
-  PDD_OPTS="${PDD_OPTS//--sp/--service-ports}"
-  PDD_OPTS="${PDD_OPTS//--ro/--remove-orphans}"
-  debug "PDD_OPTS: $PDD_OPTS"
+  # Get all args passed to the script
+  all_args="$@"
+  debug "[All Args] All args: $all_args"
 
-  PDD_SERVICE=$(validate_and_get_service "$1")
-  PDD_OPTS=$(get_opts "${@:1:$((${#}-1))}")
-  PDD_RUN_COMMAND=$(get_run_command "${@: -1}")
+  # Pass all args to the script
+  PDD_SERVICE=$(validate_and_get_service "${all_args}")
+  PDD_OPTS=$(get_opts "${all_args}")
+  PDD_RUN_COMMAND=$(get_run_command "${all_args}")
+
+  debug "PDD_SERVICE: $PDD_SERVICE"
+  debug "PDD_OPTS: $PDD_OPTS"
+  debug "PDD_RUN_COMMAND: $PDD_RUN_COMMAND"
 
   run_docker_exec "$PDD_SERVICE" "$PDD_OPTS" "$PDD_RUN_COMMAND"
 
